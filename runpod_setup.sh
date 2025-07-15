@@ -61,6 +61,14 @@ npm install
 echo "⚙️ Setting up environment variables..."
 cp python_api/.env.example python_api/.env
 
+echo ""
+echo "🔑 IMPORTANT: You need to set up your Hugging Face token!"
+echo "1. Get your token from: https://huggingface.co/settings/tokens"
+echo "2. Edit python_api/.env and replace 'your_huggingface_token_here' with your actual token"
+echo "3. This is REQUIRED for PyAnnote speaker diarization to work"
+echo ""
+read -p "Press Enter when you've updated the HF_TOKEN in python_api/.env..."
+
 # Configure Supervisor for process management
 echo "🔧 Configuring Supervisor..."
 cat > /etc/supervisor/conf.d/voip-system.conf << 'EOF'

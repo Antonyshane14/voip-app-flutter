@@ -73,12 +73,22 @@ pip install -r requirements.txt
 cd ..
 ```
 
-### 5. Install Node.js Dependencies
+### 5. Configure Hugging Face Token (REQUIRED)
+```bash
+# Get your token from: https://huggingface.co/settings/tokens
+# Edit the .env file
+nano python_api/.env
+
+# Replace 'your_huggingface_token_here' with your actual token
+# HF_TOKEN=hf_your_actual_token_here
+```
+
+### 6. Install Node.js Dependencies
 ```bash
 npm install
 ```
 
-### 6. Start Services
+### 7. Start Services
 ```bash
 # Terminal 1: Python API
 source venv/bin/activate
@@ -88,11 +98,26 @@ cd python_api && python main.py
 node bridge_server.js
 ```
 
-### 7. Get RunPod URLs
+### 8. Get RunPod URLs
 Your pod will be accessible at:
 - Main: `https://your-pod-id-80.proxy.runpod.net`
 - Python API: `https://your-pod-id-8000.proxy.runpod.net`
 - Node Bridge: `https://your-pod-id-3001.proxy.runpod.net`
+
+## 🔑 Prerequisites
+
+### Required Accounts & Tokens
+1. **Hugging Face Account**: Sign up at [huggingface.co](https://huggingface.co)
+   - Get your token: [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
+   - Required for PyAnnote speaker diarization
+   
+2. **RunPod Account**: Sign up at [runpod.io](https://runpod.io)
+   - For GPU-powered AI processing
+
+### System Requirements
+- **GPU**: RTX4090, RTX3090, or similar CUDA-compatible GPU
+- **RAM**: Minimum 16GB, Recommended 32GB+
+- **Storage**: 50GB+ for models and dependencies
 
 ## 🏗️ Architecture
 
