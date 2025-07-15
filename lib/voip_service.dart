@@ -47,21 +47,24 @@ class VoIPService {
 
   // Socket.IO for signaling
   IO.Socket? _socket;
-
+  
   // Scam detection components
   IO.Socket? _scamSocket;
   String? _bridgeServerUrl;
   Timer? _chunkUploadTimer;
   int _chunkCounter = 0;
   String? _currentCallId;
-  bool _isIncomingCall =
-      false; // Track if this is incoming call (potential victim)
+  bool _isIncomingCall = false; // Track if this is incoming call (potential victim)
   String? _currentUserId;
 
   // Recording components
   final AudioRecorder _recorder = AudioRecorder();
   bool _isRecording = false;
   String? _currentRecordingPath;
+  
+  // Call state variables
+  Map<String, dynamic>? _pendingOffer;
+  String? _incomingCallerId;
 
   // Configuration
   final Map<String, dynamic> _iceServers = {
@@ -90,7 +93,7 @@ class VoIPService {
     try {
       // Store current user ID
       _currentUserId = userId;
-
+      
       // Connect to signaling server
       _socket = IO.io(serverUrl, <String, dynamic>{
         'transports': ['websocket'],
@@ -101,19 +104,44 @@ class VoIPService {
       await _initializeScamDetection(serverUrl);
 
       _socket!.onConnect((_) {
-        print('Connected to signaling server');
+        print('✅ Connected to signaling server');
+        // Register user on connection
+        _socket!.emit('register', {'userId': userId});
       });
 
       _socket!.onDisconnect((_) {
-        print('Disconnected from signaling server');
+        print('❌ Disconnected from signaling server');
       });
 
-      // Handle signaling messages
-      _socket!.on('offer', _handleOffer);
-      _socket!.on('answer', _handleAnswer);
+      // Handle registration confirmation
+      _socket!.on('registered', (data) {
+        print('👤 Registered as user: ${data['userId']}');
+      });
+
+      // Handle incoming calls
+      _socket!.on('incoming-call', _handleIncomingCall);
+      
+      // Handle call accepted
+      _socket!.on('call-accepted', _handleCallAccepted);
+      
+      // Handle call rejected
+      _socket!.on('call-rejected', _handleCallRejected);
+      
+      // Handle ICE candidates
       _socket!.on('ice-candidate', _handleIceCandidate);
-      _socket!.on('call-request', _handleIncomingCall);
+      
+      // Handle call ended
       _socket!.on('call-ended', _handleCallEnded);
+      
+      // Handle call failed
+      _socket!.on('call-failed', (data) {
+        onError?.call('Call failed: ${data['message']}');
+      });
+
+      // Handle user updates
+      _socket!.on('users-update', (data) {
+        print('👥 Active users: ${data['users']}');
+      });
 
       _socket!.connect();
     } catch (e) {
@@ -140,16 +168,17 @@ class VoIPService {
 
       // Start recording when call starts
       await startRecording();
-
+      
       // Mark as outgoing call (caller = potential scammer, no alerts needed)
       _isIncomingCall = false;
-
+      
       // Start scam detection (but won't send alerts for outgoing calls)
       final callId = 'call_${DateTime.now().millisecondsSinceEpoch}';
       _startScamDetection(callId, targetUserId);
 
-      _socket!.emit('call-request', {
-        'target': targetUserId,
+      _socket!.emit('call-user', {
+        'userToCall': targetUserId,
+        'from': _currentUserId,
         'offer': offer.toMap(),
       });
     } catch (e) {
@@ -182,7 +211,10 @@ class VoIPService {
       // Start recording when answering call
       await startRecording();
 
-      _socket!.emit('answer', {'answer': answer.toMap()});
+      _socket!.emit('accept-call', {
+        'to': offer['callerId'],
+        'answer': answer.toMap(),
+      });
     } catch (e) {
       onError?.call('Failed to answer call: $e');
     }
@@ -193,11 +225,13 @@ class VoIPService {
     try {
       // Stop recording when call ends
       await stopRecording();
-
+      
       // Stop scam detection
       _stopScamDetection();
 
-      _socket!.emit('end-call', {});
+      _socket!.emit('end-call', {
+        'to': null, // Will be handled by server
+      });
       await _cleanupCall();
       onCallEnded?.call();
     } catch (e) {
@@ -210,7 +244,10 @@ class VoIPService {
     _peerConnection = await createPeerConnection(_iceServers);
 
     _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
-      _socket!.emit('ice-candidate', {'candidate': candidate.toMap()});
+      _socket!.emit('ice-candidate', {
+        'to': _incomingCallerId, // Send to the other peer
+        'candidate': candidate.toMap(),
+      });
     };
 
     _peerConnection!.onTrack = (RTCTrackEvent event) {
@@ -240,23 +277,38 @@ class VoIPService {
     _localStream = await navigator.mediaDevices.getUserMedia(constraints);
   }
 
-  // Handle incoming offer
-  void _handleOffer(dynamic data) {
-    final offer = data['offer'];
-    final fromUser = data['from'];
-    onIncomingCall?.call(fromUser);
-    // Store offer for when user accepts
-    _pendingOffer = offer;
+  // Handle incoming call
+  void _handleIncomingCall(dynamic data) {
+    print('📞 Incoming call from: ${data['from']}');
+    
+    // Mark as incoming call (potential victim, needs alerts)
+    _isIncomingCall = true;
+    
+    // Store the offer and caller info for later use
+    _pendingOffer = data['offer'];
+    _incomingCallerId = data['callerId'];
+    
+    onIncomingCall?.call(data['from']);
   }
 
-  Map<String, dynamic>? _pendingOffer;
+  // Handle call accepted (when we made a call)
+  void _handleCallAccepted(dynamic data) async {
+    print('✅ Call accepted, setting up connection...');
+    try {
+      // Set the remote description (answer)
+      await _peerConnection!.setRemoteDescription(
+        RTCSessionDescription(data['answer']['sdp'], data['answer']['type']),
+      );
+    } catch (e) {
+      onError?.call('Failed to handle call accepted: $e');
+    }
+  }
 
-  // Handle answer
-  void _handleAnswer(dynamic data) async {
-    final answer = data['answer'];
-    await _peerConnection?.setRemoteDescription(
-      RTCSessionDescription(answer['sdp'], answer['type']),
-    );
+  // Handle call rejected
+  void _handleCallRejected(dynamic data) {
+    print('❌ Call was rejected');
+    onError?.call('Call was rejected by the other party');
+    endCall();
   }
 
   // Handle ICE candidate
@@ -271,16 +323,9 @@ class VoIPService {
     );
   }
 
-  // Handle incoming call
-  void _handleIncomingCall(dynamic data) {
-    final fromUser = data['from'];
-    final offer = data['offer'];
-    _pendingOffer = offer;
-    onIncomingCall?.call(fromUser);
-  }
-
   // Handle call ended
   void _handleCallEnded(dynamic data) {
+    print('📵 Call ended by remote party');
     _cleanupCall();
     onCallEnded?.call();
   }
@@ -290,12 +335,12 @@ class VoIPService {
     if (_pendingOffer != null) {
       // Mark as incoming call (receiver = potential victim, needs alerts)
       _isIncomingCall = true;
-
+      
       // Start recording and scam detection for incoming call
       await startRecording();
       final callId = 'call_${DateTime.now().millisecondsSinceEpoch}';
       _startScamDetection(callId, 'incoming_caller');
-
+      
       await answerCall(_pendingOffer!);
       _pendingOffer = null;
     }
@@ -303,8 +348,11 @@ class VoIPService {
 
   // Reject pending call
   void rejectIncomingCall() {
-    _socket!.emit('reject-call', {});
+    _socket!.emit('reject-call', {
+      'to': _incomingCallerId,
+    });
     _pendingOffer = null;
+    _incomingCallerId = null;
   }
 
   // Cleanup call resources
@@ -420,7 +468,7 @@ class VoIPService {
     await _cleanupCall();
     _socket?.disconnect();
     _socket = null;
-
+    
     // Cleanup scam detection
     _chunkUploadTimer?.cancel();
     _scamSocket?.disconnect();
@@ -433,7 +481,7 @@ class VoIPService {
       // Extract base URL and use port 3001 for bridge service
       final uri = Uri.parse(serverUrl);
       _bridgeServerUrl = '${uri.scheme}://${uri.host}:3001';
-
+      
       // Connect to bridge server for real-time notifications
       _scamSocket = IO.io(_bridgeServerUrl!, <String, dynamic>{
         'transports': ['websocket'],
@@ -468,7 +516,7 @@ class VoIPService {
 
       final alert = ScamAlert.fromJson(Map<String, dynamic>.from(data));
       print('🚨 SCAM ALERT (INCOMING CALL): ${alert.level} - ${alert.message}');
-
+      
       // Notify the UI through callback (only for potential victims)
       onScamAlert?.call(alert);
     } catch (e) {
@@ -480,7 +528,7 @@ class VoIPService {
   void _startScamDetection(String callId, String userId) {
     _currentCallId = callId;
     _chunkCounter = 0;
-
+    
     // Register call for notifications with role information
     _scamSocket?.emit('register-call', {
       'call_id': callId,
@@ -493,18 +541,20 @@ class VoIPService {
     _chunkUploadTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
       _uploadRecordingChunk();
     });
-
+    
     print('🔍 Started scam detection for call: $callId');
   }
 
   // Stop scam detection for a call
   void _stopScamDetection() {
     _chunkUploadTimer?.cancel();
-
+    
     if (_currentCallId != null) {
-      _scamSocket?.emit('unregister-call', {'call_id': _currentCallId});
+      _scamSocket?.emit('unregister-call', {
+        'call_id': _currentCallId,
+      });
     }
-
+    
     _currentCallId = null;
     _chunkCounter = 0;
     print('🔍 Stopped scam detection');
@@ -512,9 +562,7 @@ class VoIPService {
 
   // Upload recording chunk for analysis
   Future<void> _uploadRecordingChunk() async {
-    if (_currentRecordingPath == null ||
-        _bridgeServerUrl == null ||
-        _currentCallId == null) {
+    if (_currentRecordingPath == null || _bridgeServerUrl == null || _currentCallId == null) {
       return;
     }
 
@@ -523,7 +571,7 @@ class VoIPService {
       if (!await file.exists()) return;
 
       _chunkCounter++;
-
+      
       // Create a temporary chunk file (last 10 seconds of recording)
       final chunkPath = await _createRecordingChunk();
       if (chunkPath == null) return;
@@ -533,7 +581,9 @@ class VoIPService {
         Uri.parse('$_bridgeServerUrl/analyze-call-chunk'),
       );
 
-      request.files.add(await http.MultipartFile.fromPath('audio', chunkPath));
+      request.files.add(
+        await http.MultipartFile.fromPath('audio', chunkPath),
+      );
 
       request.fields['call_id'] = _currentCallId!;
       request.fields['chunk_number'] = _chunkCounter.toString();
@@ -542,7 +592,7 @@ class VoIPService {
       request.fields['user_role'] = _isIncomingCall ? 'receiver' : 'caller';
 
       final response = await request.send();
-
+      
       if (response.statusCode == 200) {
         print('📤 Uploaded chunk $_chunkCounter for analysis');
       } else {
@@ -554,6 +604,7 @@ class VoIPService {
       if (await chunkFile.exists()) {
         await chunkFile.delete();
       }
+
     } catch (e) {
       print('Error uploading recording chunk: $e');
     }

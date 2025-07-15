@@ -1,157 +1,169 @@
-# 🎯 VoIP Scam Detection System
+# VoIP App with Real-Time Scam Detection
 
-A complete Flutter VoIP application with real-time AI-powered scam detection, optimized for global deployment.
+A Flutter VoIP application that uses AI to detect phone scams in real-time during calls.
 
-## 🚀 Quick Start
+## What It Does
+
+This app allows people to make voice calls and automatically sends audio chunks to an external Python AI API for scam analysis. The app is a **client-only application** that:
+
+1. Makes VoIP calls between users
+2. Records audio in 10-second chunks during calls
+3. **Posts audio data to external Python API server**
+4. **Displays scam detection results** from the API response
+5. Shows real-time warnings if scams are detected
+
+**Note**: The Python AI server runs separately - this Flutter app only communicates with it via HTTP requests.
+
+## How It Works
+
+### System Components
+```
+📱 Flutter App ←→ 🌐 Node.js Server ←→ 🌍 External Python AI API
+   (VoIP Client)    (WebRTC Signaling)     (Scam Detection Service)
+```
+
+**The Flutter app is a client that:**
+- Handles VoIP calls via WebRTC
+- Records audio chunks locally
+- **Sends HTTP requests** to external Python API
+- **Receives and displays** scam analysis results
+
+### Code Flow
+
+1. **App Startup**
+   - Flutter app starts and generates random user ID (1000-9999)
+   - Scans local network to find Node.js server on port 3000
+   - Connects to server via WebSocket
+
+2. **Making a Call**
+   ```
+   User enters target ID → WebRTC offer created → Sent to Node.js server
+   → Server routes to target user → Target accepts/rejects
+   → Direct peer-to-peer audio connection established
+   ```
+
+3. **Real-Time Scam Detection**
+   ```
+   Call starts → Auto-recording begins → Every 10 seconds:
+   Audio chunk → Base64 encode → HTTP POST to Python API
+   → API analyzes (speech-to-text, emotion, patterns) → Returns JSON response
+   → App parses response → If scam detected → Alert shown to receiver only
+   ```
+
+4. **Client-Server Communication**
+   - **App records**: 10-second WAV chunks at 16kHz
+   - **App sends**: HTTP POST with base64 audio to `/analyze_audio` endpoint
+   - **API processes**: Whisper transcription + pattern matching + emotion detection
+   - **API returns**: JSON with risk level and analysis details
+   - **App displays**: Alert dialog only to incoming call receivers (potential victims)
+
+### Key Files
+
+- `lib/main.dart` - Flutter UI and call interface with API integration
+- `lib/voip_service.dart` - WebRTC handling and audio recording + HTTP API calls
+- `bridge_server.js` - Node.js signaling server (WebRTC only)
+- **External Python API** - Separate scam detection service (not included in app)
+
+## Project Structure
+
+```
+voip/
+├── lib/                    # Flutter VoIP client app
+├── android/               # Android platform files  
+├── bridge_server.js      # Node.js WebRTC signaling server
+├── package.json          # Node.js dependencies
+├── pubspec.yaml         # Flutter dependencies
+└── python_api/           # External AI API (runs separately)
+```
+
+**Note**: The `python_api/` folder contains the external scam detection service that the Flutter app communicates with via HTTP requests.
+
+## Setup Instructions
+
+### Prerequisites
+- Node.js (v18+)
+- Flutter SDK
+- Python 3.8+
+
+### Quick Test
+```bash
+./test_system.sh  # Check if everything is ready
+```
 
 ### 1. Install Dependencies
-```bash
-# Flutter dependencies
-flutter pub get
 
-# Node.js dependencies  
+**Node.js Server:**
+```bash
 npm install
-
-# Python dependencies
-cd python_api && pip install -r requirements.txt
 ```
 
-### 2. Run the System
+**Flutter App:**
 ```bash
-# Test locally first
-./test_integrated_system.sh
-
-# Or start services manually:
-# 1. Python API: cd python_api && python main.py
-# 2. Node.js Bridge: node bridge_server.js  
-# 3. Flutter App: flutter run
+flutter pub get
 ```
 
-### 3. Deploy to RunPod
+**Python AI API:**
 ```bash
-# Clone repository in RunPod
-cd /workspace
-git clone https://github.com/Antonyshane14/voip-app-flutter.git
-cd voip-app-flutter
-
-# Run the complete setup script
-./runpod_setup.sh
-```
-
-## 🔧 Manual RunPod Setup
-
-If you prefer to set up step by step:
-
-### 1. Create RunPod Pod
-- Choose RTX4090 or RTX3090
-- Use PyTorch template: `runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel-ubuntu22.04`
-
-### 2. Clone Repository
-```bash
-cd /workspace
-git clone https://github.com/Antonyshane14/voip-app-flutter.git
-cd voip-app-flutter
-```
-
-### 3. Install System Dependencies
-```bash
-apt-get update && apt-get install -y nodejs npm ffmpeg build-essential
-
-# Install Ollama for LLM processing
-curl -fsSL https://ollama.ai/install.sh | sh
-ollama serve &
-sleep 5
-ollama pull hermes3:8b
-```
-
-### 4. Setup Python (Virtual Environment)
-```bash
-python3 -m venv venv
-source venv/bin/activate
 cd python_api
 pip install -r requirements.txt
-cd ..
 ```
 
-### 5. Configure Hugging Face Token (REQUIRED)
+### 2. Start the System (3 terminals)
+
+**Terminal 1 - External Python AI API:**
 ```bash
-# Get your token from: https://huggingface.co/settings/tokens
-# Edit the .env file
-nano python_api/.env
-
-# Replace 'your_huggingface_token_here' with your actual token
-# HF_TOKEN=hf_your_actual_token_here
+cd python_api
+python main.py
+# Runs external scam detection service on http://localhost:8000
 ```
 
-### 6. Install Node.js Dependencies
+**Terminal 2 - Node.js WebRTC Server:**
 ```bash
-npm install
+npm start  
+# Runs WebRTC signaling server on http://localhost:3000
 ```
 
-### 7. Start Services
+**Terminal 3 - Flutter VoIP Client:**
 ```bash
-# Terminal 1: Python API
-source venv/bin/activate
-cd python_api && python main.py
-
-# Terminal 2: Node.js Bridge  
-node bridge_server.js
+flutter run
+# App will auto-discover the signaling server and connect to API
 ```
 
-### 8. Get RunPod URLs
-Your pod will be accessible at:
-- Main: `https://your-pod-id-80.proxy.runpod.net`
-- Python API: `https://your-pod-id-8000.proxy.runpod.net`
-- Node Bridge: `https://your-pod-id-3001.proxy.runpod.net`
+### 3. Testing the System
 
-## 🔑 Prerequisites
+1. Open the app on 2 devices/emulators (same network)
+2. Note the User IDs shown in each app (e.g., 1234, 5678)
+3. Use one device to call the other using their ID
+4. During the call, say phrases like "urgent bank verification" or "send money now"
+5. Watch for scam alerts to appear on the receiver's device
 
-### Required Accounts & Tokens
-1. **Hugging Face Account**: Sign up at [huggingface.co](https://huggingface.co)
-   - Get your token: [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
-   - Required for PyAnnote speaker diarization
-   
-2. **RunPod Account**: Sign up at [runpod.io](https://runpod.io)
-   - For GPU-powered AI processing
+### 4. How the Detection Works
 
-### System Requirements
-- **GPU**: RTX4090, RTX3090, or similar CUDA-compatible GPU
-- **RAM**: Minimum 16GB, Recommended 32GB+
-- **Storage**: 50GB+ for models and dependencies
+- **Every 10 seconds** during a call, audio is recorded and analyzed
+- **AI processes** speech-to-text, emotion detection, and pattern matching
+- **Scam keywords** like "urgent", "verify account", "send money" trigger alerts
+- **Only receivers** of incoming calls get warnings (potential victims)
+- **Privacy**: Audio is processed locally, chunks deleted after analysis
 
-## 🏗️ Architecture
+## Technical Features
 
-```
-Flutter App → Node.js Bridge → Python AI API
-    ↓              ↓              ↓
-  WebRTC        Socket.IO     ML Models
-```
+- **WebRTC**: Direct peer-to-peer calling between devices
+- **Real-time AI**: 10-second audio chunk analysis
+- **Multi-modal Detection**: Speech, emotion, and pattern analysis  
+- **Network Discovery**: Automatically finds servers on local network
+- **Cross-platform**: Works on Android, iOS, and desktop
+- **Privacy-first**: Local recording, no permanent storage
 
-## 🔑 Key Features
+## Network Requirements
 
-- **Real-time VoIP calling** with WebRTC
-- **AI scam detection** using Whisper, emotion analysis, and LLM
-- **Role-based alerts** (only victims get warnings)
-- **Global deployment** ready for RunPod
-- **RTX4090 optimized** for high performance
+- All devices must be on the same local network for VoIP calls
+- Default ports: **3000** (Node.js), **8000** (Python)
+- The app automatically discovers the bridge server IP
+- For cloud AI: Configure RunPod URL in the "Server Test" tab
 
-## 📦 Core Files
+## Troubleshooting
 
-- `lib/main.dart` - Flutter VoIP app
-- `bridge_server.js` - Node.js WebSocket bridge
-- `python_api/main.py` - AI detection engine
-- `runpod_deploy_unified.sh` - Deployment script
-- `test_integrated_system.sh` - Local testing
-
-## 🎯 Configuration
-
-Update server URL in `lib/config/voip_config.dart`:
-```dart
-static const List<String> serverUrls = [
-  'your-runpod-url.runpod.net'
-];
-```
-
-## ✅ Ready for Production
-
-This system integrates proven working components and is ready for immediate deployment to RunPod with global scam detection capabilities.
+- **Can't find server**: Run `./test_system.sh` to check setup
+- **Calls not connecting**: Ensure both devices are on same network
+- **AI not working**: Check Python API is running on port 8000
+- **Port conflicts**: Check with `lsof -i :3000` and `lsof -i :8000`

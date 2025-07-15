@@ -1,16 +1,14 @@
 {
-  "name": "voip-signaling-server",
+  "name": "voip-bridge-server",
   "version": "1.0.0",
-  "description": "WebRTC signaling server for VoIP app",
-  "main": "signaling_server/server.js",
+  "description": "VoIP bridge server with WebRTC signaling and AI scam detection",
+  "main": "bridge_server.js",
   "engines": {
     "node": "18.x"
   },
   "scripts": {
-    "start": "cd signaling_server && node server.js",
-    "dev": "cd signaling_server && nodemon server.js",
-    "build": "cd signaling_server && npm install",
-    "postinstall": "cd signaling_server && npm install"
+    "start": "node bridge_server.js",
+    "dev": "nodemon bridge_server.js"
   },
   "dependencies": {
     "express": "^4.18.2",

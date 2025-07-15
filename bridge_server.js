@@ -20,6 +20,10 @@ const io = socketIo(server, {
 app.use(cors());
 app.use(express.json());
 
+// WebRTC Signaling - Store connected users and their socket IDs
+const connectedUsers = new Map(); // userId -> socketId
+const userSockets = new Map(); // socketId -> userId
+
 // Store active call analysis sessions with role information
 const activeCalls = new Map();
 const callSockets = new Map(); // Map call_id to {socket_id, is_incoming_call, user_role}
@@ -219,15 +223,84 @@ app.post('/analyze-call-chunk', upload.single('audio'), async (req, res) => {
   }
 });
 
-// WebSocket connection for real-time notifications
+// WebSocket connection for WebRTC signaling AND real-time scam notifications
 io.on('connection', (socket) => {
-  console.log('📱 VoIP app connected:', socket.id);
+  console.log('📱 Client connected:', socket.id);
 
-  // Register call for notifications
+  // ==================== WebRTC SIGNALING ====================
+  
+  // User registration for VoIP calls
+  socket.on('register', (data) => {
+    const { userId } = data;
+    console.log(`👤 User registered: ${userId} (${socket.id})`);
+    
+    connectedUsers.set(userId, socket.id);
+    userSockets.set(socket.id, userId);
+    
+    socket.emit('registered', { userId, socketId: socket.id });
+    
+    // Send updated user list to all clients
+    const userList = Array.from(connectedUsers.keys());
+    io.emit('users-update', { users: userList });
+  });
+
+  // Initiate call
+  socket.on('call-user', (data) => {
+    const { userToCall, from, offer } = data;
+    const calleeSocketId = connectedUsers.get(userToCall);
+    
+    if (calleeSocketId) {
+      console.log(`📞 Call from ${from} to ${userToCall}`);
+      io.to(calleeSocketId).emit('incoming-call', {
+        from,
+        offer,
+        callerId: socket.id
+      });
+    } else {
+      socket.emit('call-failed', { message: 'User not found or offline' });
+    }
+  });
+
+  // Accept call
+  socket.on('accept-call', (data) => {
+    const { to, answer } = data;
+    console.log(`✅ Call accepted, sending answer to ${to}`);
+    io.to(to).emit('call-accepted', { answer });
+  });
+
+  // Reject call
+  socket.on('reject-call', (data) => {
+    const { to } = data;
+    console.log(`❌ Call rejected, notifying ${to}`);
+    io.to(to).emit('call-rejected');
+  });
+
+  // ICE candidate exchange
+  socket.on('ice-candidate', (data) => {
+    const { to, candidate } = data;
+    if (to) {
+      io.to(to).emit('ice-candidate', { candidate, from: socket.id });
+    }
+  });
+
+  // End call
+  socket.on('end-call', (data) => {
+    const { to } = data;
+    if (to) {
+      console.log(`📵 Call ended, notifying ${to}`);
+      io.to(to).emit('call-ended');
+    }
+  });
+
+  // ==================== SCAM DETECTION ====================
+
+  // ==================== SCAM DETECTION ====================
+
+  // Register call for scam monitoring
   socket.on('register-call', (data) => {
     const { call_id, user_id } = data;
     callSockets.set(call_id, socket.id);
-    console.log(`📞 Registered call ${call_id} for notifications`);
+    console.log(`📞 Registered call ${call_id} for scam monitoring`);
     
     socket.emit('registration-confirmed', {
       call_id,
@@ -242,7 +315,23 @@ io.on('connection', (socket) => {
     console.log(`📞 Unregistered call ${call_id}`);
   });
 
+  // ==================== DISCONNECT HANDLING ====================
+  
   socket.on('disconnect', () => {
+    const userId = userSockets.get(socket.id);
+    if (userId) {
+      console.log(`👤 User disconnected: ${userId} (${socket.id})`);
+      connectedUsers.delete(userId);
+      userSockets.delete(socket.id);
+      
+      // Update user list for all clients
+      const userList = Array.from(connectedUsers.keys());
+      io.emit('users-update', { users: userList });
+      
+      // Notify any ongoing calls
+      socket.broadcast.emit('user-disconnected', { userId });
+    }
+    
     // Remove socket from all call registrations
     for (const [call_id, socket_id] of callSockets.entries()) {
       if (socket_id === socket.id) {
@@ -292,14 +381,33 @@ app.delete('/call-data/:call_id', (req, res) => {
   });
 });
 
+// Root endpoint for server discovery
+app.get('/', (req, res) => {
+  res.json({
+    service: 'VoIP Signaling Server with AI Scam Detection',
+    status: 'running',
+    features: ['WebRTC Signaling', 'Real-time Scam Detection'],
+    endpoints: {
+      health: '/health',
+      'test-python-api': '/test-python-api',
+      'analyze-call-chunk': '/analyze-call-chunk (POST)',
+      'call-summary': '/call-summary/:call_id',
+    },
+    websocket: 'Socket.IO enabled for real-time communication'
+  });
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
-    service: 'VoIP Scam Detection Bridge',
+    service: 'VoIP Signaling Server with AI Scam Detection',
+    features: ['WebRTC Signaling', 'Real-time Scam Detection'],
     python_api: PYTHON_API_URL,
     active_calls: activeCalls.size,
-    connected_clients: io.engine.clientsCount
+    connected_users: connectedUsers.size,
+    websocket_clients: io.engine.clientsCount,
+    uptime: process.uptime()
   });
 });
 
@@ -319,9 +427,12 @@ app.get('/test-python-api', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`🌉 VoIP Scam Detection Bridge running on port ${PORT}`);
+  console.log(`🌉 VoIP Signaling Server with AI Scam Detection running on port ${PORT}`);
+  console.log(`🔗 WebRTC signaling enabled for peer-to-peer calls`);
   console.log(`🐍 Python API: ${PYTHON_API_URL}`);
-  console.log(`📱 Ready to process VoIP call analysis`);
+  console.log(`🛡️ Real-time scam detection enabled`);
+  console.log(`📱 Ready to handle VoIP calls and analysis`);
+  console.log(`🌐 Server discovery endpoint: http://localhost:${PORT}/`);
 });
