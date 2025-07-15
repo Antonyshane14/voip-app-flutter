@@ -5,6 +5,13 @@
 echo "🚀 Setting up VoIP Scam Detection System on RunPod..."
 echo "======================================================"
 
+# IMPORTANT: Export HuggingFace Token BEFORE running this script
+echo "🔑 Setting up HuggingFace token..."
+export HF_TOKEN="hf_your_actual_token_here"
+echo "⚠️  REMINDER: Replace 'hf_your_actual_token_here' with your actual HuggingFace token!"
+echo "   Get your token from: https://huggingface.co/settings/tokens"
+echo ""
+
 # Update system packages
 echo "📦 Updating system packages..."
 apt-get update && apt-get upgrade -y

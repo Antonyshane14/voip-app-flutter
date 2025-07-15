@@ -13,6 +13,11 @@ fi
 echo "📦 Installing Node.js dependencies..."
 npm install
 
+# Export HuggingFace Token (REQUIRED for PyAnnote and other models)
+echo "🔑 Setting up HuggingFace token..."
+export HF_TOKEN="hf_your_actual_token_here"
+echo "HF_TOKEN exported for this session"
+
 # Install Python dependencies
 echo "🐍 Installing Python dependencies..."
 cd python_api
