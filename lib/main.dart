@@ -54,12 +54,12 @@ class _DialerPageState extends State<DialerPage> {
     //   return 'http://172.24.0.9:3000';
     // } else {
       print('🌐 Using production signaling server for non-WiFi connection');
-      return 'https://signalling-server-two.vercel.app';
+      return 'https://web-production-26750.up.railway.app/';
     // }
   } catch (e) {
     print('⚠️ Connectivity check failed: $e');
     // Fallback to production server in case of any error
-    return 'https://signalling-server-two.vercel.app';
+    return 'https://web-production-26750.up.railway.app/';
   }
 }
 
