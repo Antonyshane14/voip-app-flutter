@@ -1,10 +1,8 @@
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:record/record.dart';
-import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:async';
 
 class VoIPService {
@@ -24,8 +22,6 @@ class VoIPService {
   final AudioRecorder _recorder = AudioRecorder();
   bool _isRecording = false;
   String? _currentRecordingPath;
-  Timer? _uploadTimer;
-  String? _serverUrl;
   
   // Configuration
   final Map<String, dynamic> _iceServers = {
@@ -51,9 +47,6 @@ class VoIPService {
     required String userId,
   }) async {
     try {
-      // Store server URL for recording uploads
-      _serverUrl = serverUrl;
-      
       // Connect to signaling server
       _socket = IO.io(serverUrl, <String, dynamic>{
         'transports': ['websocket'],
@@ -289,9 +282,27 @@ class VoIPService {
     try {
       // Check if recorder has permission
       if (await _recorder.hasPermission()) {
-        // Get the app's documents directory
-        final directory = await getApplicationDocumentsDirectory();
-        _currentRecordingPath = '${directory.path}/call_recording_${DateTime.now().millisecondsSinceEpoch}.wav';
+        // Get a local directory for storing recordings
+        Directory recordingsDir;
+        
+        if (Platform.isAndroid || Platform.isIOS) {
+          // For mobile: use app documents directory
+          final directory = await getApplicationDocumentsDirectory();
+          recordingsDir = Directory('${directory.path}/voip_recordings');
+        } else {
+          // For desktop: use user's home directory
+          final homeDir = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '/tmp';
+          recordingsDir = Directory('$homeDir/VoIP_Recordings');
+        }
+        
+        // Create directory if it doesn't exist
+        if (!await recordingsDir.exists()) {
+          await recordingsDir.create(recursive: true);
+        }
+        
+        final timestamp = DateTime.now();
+        final fileName = 'call_${timestamp.year}${timestamp.month.toString().padLeft(2, '0')}${timestamp.day.toString().padLeft(2, '0')}_${timestamp.hour.toString().padLeft(2, '0')}${timestamp.minute.toString().padLeft(2, '0')}.wav';
+        _currentRecordingPath = '${recordingsDir.path}/$fileName';
         
         await _recorder.start(
           const RecordConfig(
@@ -304,12 +315,8 @@ class VoIPService {
         
         _isRecording = true;
         
-        // Start periodic upload of recording chunks (every 10 seconds for scam analysis)
-        _uploadTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
-          _uploadRecordingChunk();
-        });
-        
-        print('Recording started: $_currentRecordingPath');
+        print('🎙️ Recording started locally: $_currentRecordingPath');
+        print('📁 Recordings folder: ${recordingsDir.path}');
       }
     } catch (e) {
       print('Failed to start recording: $e');
@@ -323,56 +330,21 @@ class VoIPService {
     try {
       await _recorder.stop();
       _isRecording = false;
-      _uploadTimer?.cancel();
-      _uploadTimer = null;
       
-      // Upload the final recording chunk
-      await _uploadRecordingChunk();
-      
-      print('Recording stopped');
-    } catch (e) {
-      print('Failed to stop recording: $e');
-    }
-  }
-
-  // Upload recording chunk to server
-  Future<void> _uploadRecordingChunk() async {
-    if (_currentRecordingPath == null || _serverUrl == null) return;
-    
-    try {
-      final file = File(_currentRecordingPath!);
-      if (!await file.exists()) return;
-      
-      final bytes = await file.readAsBytes();
-      if (bytes.isEmpty) return;
-      
-      // Upload to server
-      final uri = Uri.parse('$_serverUrl/upload-recording');
-      final request = http.MultipartRequest('POST', uri);
-      
-      request.files.add(
-        http.MultipartFile.fromBytes(
-          'recording',
-          bytes,
-          filename: 'call_recording_${DateTime.now().millisecondsSinceEpoch}.wav',
-        ),
-      );
-      
-      request.fields['timestamp'] = DateTime.now().toIso8601String();
-      request.fields['type'] = 'call_recording_chunk';
-      request.fields['analysis_priority'] = 'scam_detection';
-      request.fields['chunk_interval'] = '10_seconds';
-      request.fields['call_duration'] = '${DateTime.now().millisecondsSinceEpoch}';
-      
-      final response = await request.send();
-      if (response.statusCode == 200) {
-        print('Recording chunk uploaded for scam analysis');
-      } else {
-        print('Failed to upload recording chunk: ${response.statusCode}');
+      if (_currentRecordingPath != null) {
+        final file = File(_currentRecordingPath!);
+        if (await file.exists()) {
+          final fileSizeBytes = await file.length();
+          final fileSizeMB = (fileSizeBytes / (1024 * 1024)).toStringAsFixed(2);
+          print('✅ Recording saved locally: $_currentRecordingPath');
+          print('📊 File size: ${fileSizeMB}MB');
+          print('🔍 You can find your recordings in the VoIP_Recordings folder');
+        }
       }
       
+      print('Recording stopped and saved locally');
     } catch (e) {
-      print('Error uploading recording chunk: $e');
+      print('Failed to stop recording: $e');
     }
   }
 

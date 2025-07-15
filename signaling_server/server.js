@@ -9,7 +9,8 @@ const fs = require('fs');
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = './recordings';
+    // Use Railway volume mount path if available, otherwise local folder
+    const uploadDir = process.env.RAILWAY_VOLUME_MOUNT_PATH || './recordings';
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
@@ -23,7 +24,7 @@ const storage = multer.diskStorage({
 const upload = multer({ 
   storage: storage,
   limits: {
-    fileSize: 50 * 1024 * 1024 // 50MB limit for Heroku
+    fileSize: 50 * 1024 * 1024 // 50MB limit for Railway
   }
 });
 
@@ -113,8 +114,7 @@ app.get('/', (req, res) => {
 
 // Scam analysis status endpoint
 app.get('/analysis-stats', (req, res) => {
-  const recordingsDir = './recordings';
-  const fs = require('fs');
+  const recordingsDir = process.env.RAILWAY_VOLUME_MOUNT_PATH || './recordings';
   
   try {
     const files = fs.readdirSync(recordingsDir);
@@ -132,6 +132,8 @@ app.get('/analysis-stats', (req, res) => {
       recent_recordings: recentFiles.length,
       upload_frequency: '10_seconds',
       analysis_ready: true,
+      storage_path: recordingsDir,
+      storage_type: process.env.RAILWAY_VOLUME_MOUNT_PATH ? 'Railway Volume (Persistent)' : 'Local Directory (Ephemeral)',
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -139,6 +141,52 @@ app.get('/analysis-stats', (req, res) => {
       status: 'Analysis Ready',
       total_recordings: 0,
       upload_frequency: '10_seconds',
+      storage_path: recordingsDir,
+      storage_type: process.env.RAILWAY_VOLUME_MOUNT_PATH ? 'Railway Volume (Persistent)' : 'Local Directory (Ephemeral)',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Storage information endpoint
+app.get('/storage-info', (req, res) => {
+  const recordingsDir = process.env.RAILWAY_VOLUME_MOUNT_PATH || './recordings';
+  const isVolumeMount = !!process.env.RAILWAY_VOLUME_MOUNT_PATH;
+  
+  try {
+    const files = fs.readdirSync(recordingsDir);
+    let totalSize = 0;
+    const fileDetails = files.map(file => {
+      const filePath = `${recordingsDir}/${file}`;
+      const stats = fs.statSync(filePath);
+      totalSize += stats.size;
+      return {
+        name: file,
+        size: `${(stats.size / 1024 / 1024).toFixed(2)} MB`,
+        created: stats.birthtime.toISOString(),
+        modified: stats.mtime.toISOString()
+      };
+    });
+    
+    res.json({
+      storage_path: recordingsDir,
+      storage_type: isVolumeMount ? 'Railway Volume (Persistent)' : 'Local Directory (Ephemeral)',
+      persistent: isVolumeMount,
+      total_files: files.length,
+      total_size: `${(totalSize / 1024 / 1024).toFixed(2)} MB`,
+      warning: !isVolumeMount ? 'Files will be lost on app restart/redeploy' : null,
+      recommendation: !isVolumeMount ? 'Add Railway Volume for persistent storage' : 'Storage is persistent',
+      files: fileDetails.slice(0, 10), // Show last 10 files
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.json({
+      storage_path: recordingsDir,
+      storage_type: isVolumeMount ? 'Railway Volume (Persistent)' : 'Local Directory (Ephemeral)',
+      persistent: isVolumeMount,
+      error: 'Unable to read storage directory',
+      warning: !isVolumeMount ? 'Files will be lost on app restart/redeploy' : null,
+      recommendation: !isVolumeMount ? 'Add Railway Volume for persistent storage' : 'Storage is persistent',
       timestamp: new Date().toISOString()
     });
   }
