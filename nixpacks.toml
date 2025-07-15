@@ -1,5 +1,4 @@
-[providers]
-nodejs = "18.x"
+providers = ["nodejs"]
 
 [build]
 nixPkgs = ['nodejs-18_x', 'npm-9_x']
