@@ -68,7 +68,7 @@ class _DialerPageState extends State<DialerPage> {
     // Test each server URL to find the active one
     for (String serverUrl in serverUrls) {
       print('🔄 Testing: $serverUrl');
-      
+
       try {
         final response = await http
             .get(Uri.parse(serverUrl))
@@ -88,12 +88,12 @@ class _DialerPageState extends State<DialerPage> {
         } else if (response.statusCode == 404) {
           // Server responding but no root endpoint - test Socket.IO
           print('🔍 Testing Socket.IO endpoint at: $serverUrl');
-          
+
           try {
             final testResponse = await http
                 .get(Uri.parse('$serverUrl/socket.io/'))
                 .timeout(VoIPConfig.socketTimeout);
-            
+
             if (testResponse.statusCode == 400 ||
                 testResponse.body.contains('socket.io')) {
               print('✅ Confirmed VoIP server (Socket.IO): $serverUrl');
@@ -202,7 +202,9 @@ class _DialerPageState extends State<DialerPage> {
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: alert.level == 'HIGH' ? Colors.red[50] : Colors.orange[50],
+          backgroundColor: alert.level == 'HIGH'
+              ? Colors.red[50]
+              : Colors.orange[50],
           title: Row(
             children: [
               Icon(
@@ -215,7 +217,9 @@ class _DialerPageState extends State<DialerPage> {
                 child: Text(
                   alert.level == 'HIGH' ? 'SCAM ALERT!' : 'CAUTION',
                   style: TextStyle(
-                    color: alert.level == 'HIGH' ? Colors.red[800] : Colors.orange[800],
+                    color: alert.level == 'HIGH'
+                        ? Colors.red[800]
+                        : Colors.orange[800],
                     fontWeight: FontWeight.bold,
                     fontSize: 18,
                   ),
@@ -235,29 +239,30 @@ class _DialerPageState extends State<DialerPage> {
                 ),
               ),
               const SizedBox(height: 12),
-              Text(
-                alert.details,
-                style: const TextStyle(fontSize: 14),
-              ),
+              Text(alert.details, style: const TextStyle(fontSize: 14)),
               const SizedBox(height: 16),
               const Text(
                 'Recommendations:',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
               const SizedBox(height: 8),
-              ...alert.recommendations.map((rec) => Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('• ', style: TextStyle(fontWeight: FontWeight.bold)),
-                    Expanded(child: Text(rec, style: const TextStyle(fontSize: 13))),
-                  ],
+              ...alert.recommendations.map(
+                (rec) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '• ',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Expanded(
+                        child: Text(rec, style: const TextStyle(fontSize: 13)),
+                      ),
+                    ],
+                  ),
                 ),
-              )),
+              ),
             ],
           ),
           actions: [

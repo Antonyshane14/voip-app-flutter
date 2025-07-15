@@ -1,136 +1,71 @@
-# VoIP Flutter App with AI Scam Detection
+# 🎯 VoIP Scam Detection System
 
-A professional VoIP (Voice over Internet Protocol) application built with Flutter and WebRTC, featuring real-time AI-powered scam detection and global calling capabilities.
+A complete Flutter VoIP application with real-time AI-powered scam detection, optimized for global deployment.
 
-## 🌍 Global VoIP Calling
+## 🚀 Quick Start
 
-**Call Anyone, Anywhere!** This app enables global VoIP calling where:
-- Person A (New York) ↔ Person B (Tokyo)  
-- Through your centralized server (London)
-- No need to be on same WiFi network
-- Works across countries and continents
-
-## Features
-
-✅ **Global Voice Calls** - Call anyone worldwide through centralized server  
-✅ **AI Scam Detection** - Real-time analysis with ML models  
-✅ **Smart Alerts** - Warnings sent only to potential victims  
-✅ **Professional UI** - Modern call interface with scam alerts  
-✅ **Auto Server Discovery** - Connects to your deployed server  
-✅ **Call Recording & Analysis** - 10-second chunks for scam detection  
-✅ **Multi-Platform Deployment** - RunPod, Render, Railway, Heroku support  
-
-## 🤖 AI Protection Features
-
-- **Whisper Speech Recognition** - Real-time transcription
-- **AI Voice Detection** - Identifies synthetic/deepfake voices  
-- **Emotion Analysis** - Detects stress patterns in speech
-- **LLM Scam Detection** - Pattern recognition for fraud schemes
-- **Role-Based Alerts** - Only victims receive warnings
-
-## Architecture
-
-```
-[Phone A] ←→ [Centralized Server + AI] ←→ [Phone B]
-    ↓              ↓                    ↓
- Any Country   Your Cloud Server    Any Country
-```
-
-- **Frontend**: Flutter with WebRTC
-- **Signaling**: Node.js server with Socket.IO  
-- **AI Engine**: Python with Whisper, emotion detection, LLM analysis
-- **Deployment**: Multi-cloud support (RunPod, Render, Railway, etc.)
-
-## Quick Deployment
-
-### 1. Deploy Server (Choose One Platform)
-
-#### RunPod (GPU-powered AI)
+### 1. Install Dependencies
 ```bash
-./runpod_deploy_unified.sh
-# Get URL: https://your-runpod-id.pods.run
-```
-
-#### Render (Free tier)
-- Connect GitHub repo to Render
-- Deploy `scam_detection_bridge` directory  
-- Get URL: `https://your-app.onrender.com`
-
-#### Railway
-```bash
-railway login
-railway init
-railway up
-# Get URL: https://your-app.railway.app
-```
-
-### 2. Update App Configuration
-```dart
-// In lib/voip_config.dart
-static const String primaryServerUrl = 'https://YOUR-ACTUAL-SERVER-URL';
-```
-
-### 3. Build & Distribute App
-```bash
-flutter build apk --release
-# Share APK with users worldwide
-```
-
-## Quick Start
-
-### 1. Start Signaling Server
-```bash
-cd signaling_server
-npm install
-node server.js
-```
-
-### 2. Run Flutter App
-```bash
+# Flutter dependencies
 flutter pub get
-flutter run
+
+# Node.js dependencies  
+npm install
+
+# Python dependencies
+cd python_api && pip install -r requirements.txt
 ```
 
-### 3. Make Calls
-- Generate random 4-digit user ID automatically
-- Enter target user ID to call
-- Enjoy high-quality voice calls!
+### 2. Run the System
+```bash
+# Test locally first
+./test_integrated_system.sh
 
-## Project Structure
-
-```
-voip/
-├── lib/
-│   ├── main.dart          # Main UI and dialer
-│   └── voip_service.dart  # WebRTC service and recording
-├── signaling_server/
-│   ├── server.js          # Node.js signaling server
-│   ├── package.json       # Server dependencies
-│   └── recordings/        # Call recordings storage
-├── android/               # Android platform code
-└── pubspec.yaml          # Flutter dependencies
+# Or start services manually:
+# 1. Python API: cd python_api && python main.py
+# 2. Node.js Bridge: node bridge_server.js  
+# 3. Flutter App: flutter run
 ```
 
-## Technologies
+### 3. Deploy to RunPod
+```bash
+# Deploy to RunPod container
+./runpod_deploy_unified.sh
+```
 
-- **Flutter**: Cross-platform mobile framework
-- **WebRTC**: Real-time peer-to-peer communication
-- **Socket.IO**: WebSocket signaling
-- **Node.js**: Signaling server
-- **Multer**: File upload handling
+## 🏗️ Architecture
 
-## Deployment
+```
+Flutter App → Node.js Bridge → Python AI API
+    ↓              ↓              ↓
+  WebRTC        Socket.IO     ML Models
+```
 
-Currently configured for local development. For global access:
+## 🔑 Key Features
 
-1. Deploy signaling server to cloud (Heroku, AWS, etc.)
-2. Update server URL in `lib/main.dart`
-3. Add authentication for security
-4. Distribute app to users
+- **Real-time VoIP calling** with WebRTC
+- **AI scam detection** using Whisper, emotion analysis, and LLM
+- **Role-based alerts** (only victims get warnings)
+- **Global deployment** ready for RunPod
+- **RTX4090 optimized** for high performance
 
-## Recording Feature
+## 📦 Core Files
 
-- Automatic recording during calls
-- Chunked uploads every 30 seconds
-- Server storage in `signaling_server/recordings/`
-- WAV format with timestamps
+- `lib/main.dart` - Flutter VoIP app
+- `bridge_server.js` - Node.js WebSocket bridge
+- `python_api/main.py` - AI detection engine
+- `runpod_deploy_unified.sh` - Deployment script
+- `test_integrated_system.sh` - Local testing
+
+## 🎯 Configuration
+
+Update server URL in `lib/config/voip_config.dart`:
+```dart
+static const List<String> serverUrls = [
+  'your-runpod-url.runpod.net'
+];
+```
+
+## ✅ Ready for Production
+
+This system integrates proven working components and is ready for immediate deployment to RunPod with global scam detection capabilities.

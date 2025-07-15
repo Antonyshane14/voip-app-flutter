@@ -5,7 +5,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'dart:io';
 import 'dart:async';
-import 'dart:convert';
 
 class ScamAlert {
   final String type;
@@ -48,14 +47,15 @@ class VoIPService {
 
   // Socket.IO for signaling
   IO.Socket? _socket;
-  
+
   // Scam detection components
   IO.Socket? _scamSocket;
   String? _bridgeServerUrl;
   Timer? _chunkUploadTimer;
   int _chunkCounter = 0;
   String? _currentCallId;
-  bool _isIncomingCall = false; // Track if this is incoming call (potential victim)
+  bool _isIncomingCall =
+      false; // Track if this is incoming call (potential victim)
   String? _currentUserId;
 
   // Recording components
@@ -90,7 +90,7 @@ class VoIPService {
     try {
       // Store current user ID
       _currentUserId = userId;
-      
+
       // Connect to signaling server
       _socket = IO.io(serverUrl, <String, dynamic>{
         'transports': ['websocket'],
@@ -140,10 +140,10 @@ class VoIPService {
 
       // Start recording when call starts
       await startRecording();
-      
+
       // Mark as outgoing call (caller = potential scammer, no alerts needed)
       _isIncomingCall = false;
-      
+
       // Start scam detection (but won't send alerts for outgoing calls)
       final callId = 'call_${DateTime.now().millisecondsSinceEpoch}';
       _startScamDetection(callId, targetUserId);
@@ -193,7 +193,7 @@ class VoIPService {
     try {
       // Stop recording when call ends
       await stopRecording();
-      
+
       // Stop scam detection
       _stopScamDetection();
 
@@ -290,12 +290,12 @@ class VoIPService {
     if (_pendingOffer != null) {
       // Mark as incoming call (receiver = potential victim, needs alerts)
       _isIncomingCall = true;
-      
+
       // Start recording and scam detection for incoming call
       await startRecording();
       final callId = 'call_${DateTime.now().millisecondsSinceEpoch}';
       _startScamDetection(callId, 'incoming_caller');
-      
+
       await answerCall(_pendingOffer!);
       _pendingOffer = null;
     }
@@ -420,7 +420,7 @@ class VoIPService {
     await _cleanupCall();
     _socket?.disconnect();
     _socket = null;
-    
+
     // Cleanup scam detection
     _chunkUploadTimer?.cancel();
     _scamSocket?.disconnect();
@@ -433,7 +433,7 @@ class VoIPService {
       // Extract base URL and use port 3001 for bridge service
       final uri = Uri.parse(serverUrl);
       _bridgeServerUrl = '${uri.scheme}://${uri.host}:3001';
-      
+
       // Connect to bridge server for real-time notifications
       _scamSocket = IO.io(_bridgeServerUrl!, <String, dynamic>{
         'transports': ['websocket'],
@@ -468,7 +468,7 @@ class VoIPService {
 
       final alert = ScamAlert.fromJson(Map<String, dynamic>.from(data));
       print('🚨 SCAM ALERT (INCOMING CALL): ${alert.level} - ${alert.message}');
-      
+
       // Notify the UI through callback (only for potential victims)
       onScamAlert?.call(alert);
     } catch (e) {
@@ -480,7 +480,7 @@ class VoIPService {
   void _startScamDetection(String callId, String userId) {
     _currentCallId = callId;
     _chunkCounter = 0;
-    
+
     // Register call for notifications with role information
     _scamSocket?.emit('register-call', {
       'call_id': callId,
@@ -493,20 +493,18 @@ class VoIPService {
     _chunkUploadTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
       _uploadRecordingChunk();
     });
-    
+
     print('🔍 Started scam detection for call: $callId');
   }
 
   // Stop scam detection for a call
   void _stopScamDetection() {
     _chunkUploadTimer?.cancel();
-    
+
     if (_currentCallId != null) {
-      _scamSocket?.emit('unregister-call', {
-        'call_id': _currentCallId,
-      });
+      _scamSocket?.emit('unregister-call', {'call_id': _currentCallId});
     }
-    
+
     _currentCallId = null;
     _chunkCounter = 0;
     print('🔍 Stopped scam detection');
@@ -514,7 +512,9 @@ class VoIPService {
 
   // Upload recording chunk for analysis
   Future<void> _uploadRecordingChunk() async {
-    if (_currentRecordingPath == null || _bridgeServerUrl == null || _currentCallId == null) {
+    if (_currentRecordingPath == null ||
+        _bridgeServerUrl == null ||
+        _currentCallId == null) {
       return;
     }
 
@@ -523,7 +523,7 @@ class VoIPService {
       if (!await file.exists()) return;
 
       _chunkCounter++;
-      
+
       // Create a temporary chunk file (last 10 seconds of recording)
       final chunkPath = await _createRecordingChunk();
       if (chunkPath == null) return;
@@ -533,9 +533,7 @@ class VoIPService {
         Uri.parse('$_bridgeServerUrl/analyze-call-chunk'),
       );
 
-      request.files.add(
-        await http.MultipartFile.fromPath('audio', chunkPath),
-      );
+      request.files.add(await http.MultipartFile.fromPath('audio', chunkPath));
 
       request.fields['call_id'] = _currentCallId!;
       request.fields['chunk_number'] = _chunkCounter.toString();
@@ -544,7 +542,7 @@ class VoIPService {
       request.fields['user_role'] = _isIncomingCall ? 'receiver' : 'caller';
 
       final response = await request.send();
-      
+
       if (response.statusCode == 200) {
         print('📤 Uploaded chunk $_chunkCounter for analysis');
       } else {
@@ -556,7 +554,6 @@ class VoIPService {
       if (await chunkFile.exists()) {
         await chunkFile.delete();
       }
-
     } catch (e) {
       print('Error uploading recording chunk: $e');
     }
