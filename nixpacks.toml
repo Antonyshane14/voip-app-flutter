@@ -1,0 +1,11 @@
+[providers]
+node = "18"
+
+[phases.setup]
+nixPkgs = ["nodejs-18_x", "npm-9_x"]
+
+[phases.install]
+cmds = ["cd signaling_server && npm ci"]
+
+[start]
+cmd = "cd signaling_server && npm start"

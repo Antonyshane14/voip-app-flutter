@@ -222,6 +222,13 @@ class _DialerPageState extends State<DialerPage> {
       }
     };
 
+    // Set up scam alert callback
+    _voipService.onScamAlert = (ScamAlert alert) {
+      if (mounted) {
+        _showScamAlert(alert);
+      }
+    };
+
     setState(() {
       _isInitialized = true;
     });
@@ -253,6 +260,95 @@ class _DialerPageState extends State<DialerPage> {
           },
         ),
       ),
+    );
+  }
+
+  void _showScamAlert(ScamAlert alert) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: alert.level == 'HIGH' ? Colors.red[50] : Colors.orange[50],
+          title: Row(
+            children: [
+              Icon(
+                alert.level == 'HIGH' ? Icons.dangerous : Icons.warning,
+                color: alert.level == 'HIGH' ? Colors.red : Colors.orange,
+                size: 28,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  alert.level == 'HIGH' ? 'SCAM ALERT!' : 'CAUTION',
+                  style: TextStyle(
+                    color: alert.level == 'HIGH' ? Colors.red[800] : Colors.orange[800],
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                alert.message,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                alert.details,
+                style: const TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Recommendations:',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...alert.recommendations.map((rec) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('• ', style: TextStyle(fontWeight: FontWeight.bold)),
+                    Expanded(child: Text(rec, style: const TextStyle(fontSize: 13))),
+                  ],
+                ),
+              )).toList(),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Acknowledge'),
+            ),
+            if (alert.level == 'HIGH')
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _voipService.endCall(); // End call immediately for high risk
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('End Call'),
+              ),
+          ],
+        );
+      },
     );
   }
 

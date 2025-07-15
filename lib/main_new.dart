@@ -45,10 +45,10 @@ class _DialerPageState extends State<DialerPage> {
   Future<void> _initializeVoIP() async {
     // Request permissions
     await _requestPermissions();
-    
+
     // Generate a random user ID for this session
     _currentUserId = 'user_${Random().nextInt(10000)}';
-    
+
     // Initialize VoIP service
     await _voipService.initialize(
       serverUrl: 'http://localhost:3000', // Change this to your server IP
@@ -63,17 +63,17 @@ class _DialerPageState extends State<DialerPage> {
     _voipService.onCallEnded = () {
       if (mounted) {
         Navigator.of(context).popUntil((route) => route.isFirst);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Call ended')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Call ended')));
       }
     };
 
     _voipService.onError = (String error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $error')));
       }
     };
 
@@ -83,10 +83,7 @@ class _DialerPageState extends State<DialerPage> {
   }
 
   Future<void> _requestPermissions() async {
-    await [
-      Permission.microphone,
-      Permission.camera,
-    ].request();
+    await [Permission.microphone, Permission.camera].request();
   }
 
   void _showIncomingCallDialog(String fromUser) {
@@ -111,10 +108,8 @@ class _DialerPageState extends State<DialerPage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => CallingPage(
-                    phoneNumber: fromUser,
-                    isIncomingCall: true,
-                  ),
+                  builder: (context) =>
+                      CallingPage(phoneNumber: fromUser, isIncomingCall: true),
                 ),
               );
             },
@@ -146,10 +141,8 @@ class _DialerPageState extends State<DialerPage> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => CallingPage(
-            phoneNumber: _phoneNumber,
-            isIncomingCall: false,
-          ),
+          builder: (context) =>
+              CallingPage(phoneNumber: _phoneNumber, isIncomingCall: false),
         ),
       );
     }
@@ -222,8 +215,8 @@ class _DialerPageState extends State<DialerPage> {
               ),
               const SizedBox(width: 40),
               ElevatedButton.icon(
-                onPressed: (_phoneNumber.isNotEmpty && _isInitialized) 
-                    ? _callNumber 
+                onPressed: (_phoneNumber.isNotEmpty && _isInitialized)
+                    ? _callNumber
                     : null,
                 icon: const Icon(Icons.call),
                 label: const Text('Call'),
@@ -262,9 +255,9 @@ class _DialerPageState extends State<DialerPage> {
 class CallingPage extends StatefulWidget {
   final String phoneNumber;
   final bool isIncomingCall;
-  
+
   const CallingPage({
-    super.key, 
+    super.key,
     required this.phoneNumber,
     required this.isIncomingCall,
   });
@@ -275,8 +268,8 @@ class CallingPage extends StatefulWidget {
 
 class _CallingPageState extends State<CallingPage> {
   final VoIPService _voipService = VoIPService();
-  RTCVideoRenderer _localRenderer = RTCVideoRenderer();
-  RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
+  final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
+  final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
   bool _isMuted = false;
   bool _isSpeakerOn = false;
   bool _isConnected = false;
@@ -286,7 +279,7 @@ class _CallingPageState extends State<CallingPage> {
     super.initState();
     _initializeRenderers();
     _setupVoIPCallbacks();
-    
+
     if (!widget.isIncomingCall) {
       // Outgoing call
       _voipService.startCall(widget.phoneNumber);
@@ -320,9 +313,9 @@ class _CallingPageState extends State<CallingPage> {
 
     _voipService.onError = (String error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Call error: $error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Call error: $error')));
       }
     };
   }
@@ -368,18 +361,17 @@ class _CallingPageState extends State<CallingPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _isConnected 
-                        ? 'Connected' 
-                        : (widget.isIncomingCall ? 'Incoming call...' : 'Calling...'),
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 16,
-                    ),
+                    _isConnected
+                        ? 'Connected'
+                        : (widget.isIncomingCall
+                              ? 'Incoming call...'
+                              : 'Calling...'),
+                    style: const TextStyle(color: Colors.white70, fontSize: 16),
                   ),
                 ],
               ),
             ),
-            
+
             // Video area
             Expanded(
               child: Stack(
@@ -400,7 +392,7 @@ class _CallingPageState extends State<CallingPage> {
                         ),
                       ),
                     ),
-                  
+
                   // Local video (small overlay)
                   if (_localRenderer.srcObject != null)
                     Positioned(
@@ -422,7 +414,7 @@ class _CallingPageState extends State<CallingPage> {
                 ],
               ),
             ),
-            
+
             // Controls
             Container(
               padding: const EdgeInsets.all(20),
@@ -442,7 +434,7 @@ class _CallingPageState extends State<CallingPage> {
                       onPressed: _toggleMute,
                     ),
                   ),
-                  
+
                   // End call button
                   CircleAvatar(
                     radius: 35,
@@ -456,11 +448,13 @@ class _CallingPageState extends State<CallingPage> {
                       onPressed: _endCall,
                     ),
                   ),
-                  
+
                   // Speaker button
                   CircleAvatar(
                     radius: 30,
-                    backgroundColor: _isSpeakerOn ? Colors.blue : Colors.white24,
+                    backgroundColor: _isSpeakerOn
+                        ? Colors.blue
+                        : Colors.white24,
                     child: IconButton(
                       icon: Icon(
                         _isSpeakerOn ? Icons.volume_up : Icons.volume_down,
