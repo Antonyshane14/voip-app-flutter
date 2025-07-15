@@ -57,26 +57,9 @@ class _DialerPageState extends State<DialerPage> {
         return 'http://localhost:3000';
       }
 
-      // If on mobile data, try cloud server first
+      // If on mobile data, skip cloud server and use local network detection
       if (connectivityResult == ConnectivityResult.mobile) {
-        print('📱 Mobile data detected - trying Railway cloud server first');
-
-        // Try Railway cloud server first for mobile data
-        const String cloudServerUrl = 'https://your-app-name.up.railway.app';
-        try {
-          final response = await http
-              .get(Uri.parse(cloudServerUrl))
-              .timeout(const Duration(seconds: 5));
-
-          if (response.statusCode == 200 &&
-              (response.body.contains('VoIP') ||
-                  response.body.contains('signaling'))) {
-            print('✅ Found Railway VoIP server at: $cloudServerUrl');
-            return cloudServerUrl;
-          }
-        } catch (e) {
-          print('☁️ Railway cloud server not accessible: $e');
-        }
+        print('📱 Mobile data detected - scanning local network for server');
       }
     } catch (e) {
       print('Connectivity check failed: $e');
@@ -196,22 +179,6 @@ class _DialerPageState extends State<DialerPage> {
       '⚠️ No VoIP server found after scanning ${possibleIPs.length} locations',
     );
     print('💡 Make sure your signaling server is running on port 3000');
-
-    // Final fallback: try Railway cloud server if local network fails
-    const String cloudServerUrl = 'https://your-app-name.up.railway.app';
-    try {
-      final response = await http
-          .get(Uri.parse(cloudServerUrl))
-          .timeout(const Duration(seconds: 5));
-
-      if (response.statusCode == 200) {
-        print('☁️ Using Railway cloud fallback server: $cloudServerUrl');
-        return cloudServerUrl;
-      }
-    } catch (e) {
-      print('☁️ Railway cloud fallback server not accessible: $e');
-    }
-
     print('🔄 Using localhost fallback - server may be on this device');
 
     // Final fallback to localhost for desktop testing
@@ -441,8 +408,8 @@ class CallingPage extends StatefulWidget {
 
 class _CallingPageState extends State<CallingPage> {
   final VoIPService _voipService = VoIPService();
-  RTCVideoRenderer _localRenderer = RTCVideoRenderer();
-  RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
+  final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
+  final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
   bool _isMuted = false;
   bool _isSpeakerOn = false;
   bool _isConnected = false;
