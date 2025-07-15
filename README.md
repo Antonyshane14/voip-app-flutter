@@ -29,9 +29,70 @@ cd python_api && pip install -r requirements.txt
 
 ### 3. Deploy to RunPod
 ```bash
-# Deploy to RunPod container
-./runpod_deploy_unified.sh
+# Clone repository in RunPod
+cd /workspace
+git clone https://github.com/Antonyshane14/voip-app-flutter.git
+cd voip-app-flutter
+
+# Run the complete setup script
+./runpod_setup.sh
 ```
+
+## 🔧 Manual RunPod Setup
+
+If you prefer to set up step by step:
+
+### 1. Create RunPod Pod
+- Choose RTX4090 or RTX3090
+- Use PyTorch template: `runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel-ubuntu22.04`
+
+### 2. Clone Repository
+```bash
+cd /workspace
+git clone https://github.com/Antonyshane14/voip-app-flutter.git
+cd voip-app-flutter
+```
+
+### 3. Install System Dependencies
+```bash
+apt-get update && apt-get install -y nodejs npm ffmpeg build-essential
+
+# Install Ollama for LLM processing
+curl -fsSL https://ollama.ai/install.sh | sh
+ollama serve &
+sleep 5
+ollama pull hermes3:8b
+```
+
+### 4. Setup Python (Virtual Environment)
+```bash
+python3 -m venv venv
+source venv/bin/activate
+cd python_api
+pip install -r requirements.txt
+cd ..
+```
+
+### 5. Install Node.js Dependencies
+```bash
+npm install
+```
+
+### 6. Start Services
+```bash
+# Terminal 1: Python API
+source venv/bin/activate
+cd python_api && python main.py
+
+# Terminal 2: Node.js Bridge  
+node bridge_server.js
+```
+
+### 7. Get RunPod URLs
+Your pod will be accessible at:
+- Main: `https://your-pod-id-80.proxy.runpod.net`
+- Python API: `https://your-pod-id-8000.proxy.runpod.net`
+- Node Bridge: `https://your-pod-id-3001.proxy.runpod.net`
 
 ## 🏗️ Architecture
 

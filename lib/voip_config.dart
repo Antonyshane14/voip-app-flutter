@@ -3,7 +3,8 @@
 
 class VoIPConfig {
   // Replace this with your actual RunPod URL once deployed
-  static const String primaryServerUrl = 'https://your-pod-id-80.proxy.runpod.net';
+  static const String primaryServerUrl =
+      'https://your-pod-id-80.proxy.runpod.net';
 
   // Alternative server URLs (for redundancy)
   static const List<String> serverUrls = [
