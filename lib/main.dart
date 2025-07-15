@@ -45,178 +45,24 @@ class _DialerPageState extends State<DialerPage> {
   }
 
   Future<String> _getServerUrl() async {
-    List<String> possibleIPs = [];
+  try {
+    var connectivityResult = await Connectivity().checkConnectivity();
+    print('📶 Network type: $connectivityResult');
 
-    // Step 1: Check network connectivity and get network info
-    try {
-      var connectivityResult = await Connectivity().checkConnectivity();
-      print('📶 Network type: $connectivityResult');
-
-      if (connectivityResult == ConnectivityResult.none) {
-        print('⚠️ No network connection detected');
-        return 'http://localhost:3000';
-      }
-
-      // If on mobile data, try cloud server first
-      if (connectivityResult == ConnectivityResult.mobile) {
-        print('📱 Mobile data detected - trying Railway cloud server first');
-
-        // Try Railway cloud server first for mobile data
-        const String cloudServerUrl = 'https://your-app-name.up.railway.app';
-        try {
-          final response = await http
-              .get(Uri.parse(cloudServerUrl))
-              .timeout(const Duration(seconds: 5));
-
-          if (response.statusCode == 200 &&
-              (response.body.contains('VoIP') ||
-                  response.body.contains('signaling'))) {
-            print('✅ Found Railway VoIP server at: $cloudServerUrl');
-            return cloudServerUrl;
-          }
-        } catch (e) {
-          print('☁️ Railway cloud server not accessible: $e');
-        }
-      }
-    } catch (e) {
-      print('Connectivity check failed: $e');
-    }
-
-    // Step 2: Try to detect current device's network automatically
-    try {
-      // Attempt to get external IP for better network detection context
-      await http
-          .get(Uri.parse('https://api.ipify.org?format=json'))
-          .timeout(const Duration(seconds: 3));
-
-      // Continue with local network scanning regardless of external IP result
-    } catch (e) {
-      // External IP detection failed, continue with local scanning
-      print('External IP detection failed, scanning local networks: $e');
-    }
-
-    // Step 3: Comprehensive network scanning
-    // Common network ranges - ordered by probability
-    List<String> networkBases = [
-      '192.168.1', // Most common home networks
-      '192.168.0', // Common router default
-      '192.168.2', // Some routers use this
-      '192.168.4', // Some mobile hotspots
-      '10.0.0', // Corporate/some home networks
-      '10.0.1', // Alternative corporate range
-      '172.16.0', // Private networks
-      '172.20.10', // iPhone hotspot default
-      '192.168.43', // Android hotspot default
-      '192.168.137', // Windows mobile hotspot default
-    ];
-
-    // For each network base, scan the most likely IPs
-    for (String base in networkBases) {
-      // First try the most common server/router IPs
-      possibleIPs.addAll([
-        '$base.1', // Most common router IP
-        '$base.254', // Alternative router IP
-        '$base.100', // Common server IP
-        '$base.10', // Common server IP
-        '$base.2', // Sometimes used for servers
-        '$base.5', // Sometimes used for servers
-      ]);
-
-      // Then scan a broader range for development servers
-      for (int i = 3; i <= 50; i++) {
-        if (i != 10 && i != 100 && i != 254) {
-          // Skip already added IPs
-          possibleIPs.add('$base.$i');
-        }
-      }
-    }
-
-    // Add localhost variants
-    possibleIPs.addAll([
-      '127.0.0.1', // Localhost IPv4
-      '0.0.0.0', // All interfaces
-    ]);
-
-    // Remove duplicates while preserving order
-    possibleIPs = possibleIPs.toSet().toList();
-
-    print('🔍 Scanning ${possibleIPs.length} possible server locations...');
-    print('📋 Priority networks: ${networkBases.take(3).join(', ')}...');
-
-    // Test each IP to see if the signaling server is running
-    int testedCount = 0;
-    for (String ip in possibleIPs) {
-      testedCount++;
-      if (testedCount % 20 == 0) {
-        print('📊 Tested $testedCount/${possibleIPs.length} locations...');
-      }
-
-      try {
-        final response = await http
-            .get(Uri.parse('http://$ip:3000'))
-            .timeout(
-              const Duration(milliseconds: 1200),
-            ); // Fast timeout for scanning
-
-        if (response.statusCode == 200) {
-          // Check if it's actually our VoIP server by looking for expected response
-          if (response.body.contains('VoIP') ||
-              response.body.contains('signaling')) {
-            print('✅ Found VoIP server at: http://$ip:3000');
-            print('📝 Server response: ${response.body.substring(0, 100)}...');
-            return 'http://$ip:3000';
-          } else {
-            print('📍 Found HTTP server at $ip:3000 but not VoIP server');
-          }
-        } else if (response.statusCode == 404) {
-          // Server is responding but might not have root endpoint - could still be our server
-          print('� Found server at: http://$ip:3000 (testing further...)');
-
-          // Try to ping a VoIP-specific endpoint
-          try {
-            final testResponse = await http
-                .get(Uri.parse('http://$ip:3000/socket.io/'))
-                .timeout(const Duration(milliseconds: 500));
-            if (testResponse.statusCode == 400 ||
-                testResponse.body.contains('socket.io')) {
-              print('✅ Confirmed VoIP server at: http://$ip:3000');
-              return 'http://$ip:3000';
-            }
-          } catch (e) {
-            // Continue searching
-          }
-        }
-      } catch (e) {
-        // Server not found on this IP, continue silently
-        continue;
-      }
-    }
-
-    print(
-      '⚠️ No VoIP server found after scanning ${possibleIPs.length} locations',
-    );
-    print('💡 Make sure your signaling server is running on port 3000');
-
-    // Final fallback: try Railway cloud server if local network fails
-    const String cloudServerUrl = 'https://your-app-name.up.railway.app';
-    try {
-      final response = await http
-          .get(Uri.parse(cloudServerUrl))
-          .timeout(const Duration(seconds: 5));
-
-      if (response.statusCode == 200) {
-        print('☁️ Using Railway cloud fallback server: $cloudServerUrl');
-        return cloudServerUrl;
-      }
-    } catch (e) {
-      print('☁️ Railway cloud fallback server not accessible: $e');
-    }
-
-    print('🔄 Using localhost fallback - server may be on this device');
-
-    // Final fallback to localhost for desktop testing
-    return 'http://localhost:3000';
+    // if (connectivityResult == ConnectivityResult.wifi) {
+    //   print('🧪 Using local server (localhost) for Wi-Fi');
+    //   return 'http://172.24.0.9:3000';
+    // } else {
+      print('🌐 Using production signaling server for non-WiFi connection');
+      return 'https://signalling-server-two.vercel.app';
+    // }
+  } catch (e) {
+    print('⚠️ Connectivity check failed: $e');
+    // Fallback to production server in case of any error
+    return 'https://signalling-server-two.vercel.app';
   }
+}
+
 
   Future<void> _initializeVoIP() async {
     // Request permissions

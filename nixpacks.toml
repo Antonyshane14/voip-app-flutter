@@ -8,5 +8,4 @@ nixPkgs = ['nodejs-18_x', 'npm-9_x']
 cmd = "cd signaling_server && node server.js"
 
 [variables]
-PORT = "3000"
 NODE_ENV = "production"
