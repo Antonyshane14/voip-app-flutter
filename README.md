@@ -1,22 +1,80 @@
-# VoIP Flutter App
+# VoIP Flutter App with AI Scam Detection
 
-A professional VoIP (Voice over Internet Protocol) application built with Flutter and WebRTC.
+A professional VoIP (Voice over Internet Protocol) application built with Flutter and WebRTC, featuring real-time AI-powered scam detection and global calling capabilities.
+
+## 🌍 Global VoIP Calling
+
+**Call Anyone, Anywhere!** This app enables global VoIP calling where:
+- Person A (New York) ↔ Person B (Tokyo)  
+- Through your centralized server (London)
+- No need to be on same WiFi network
+- Works across countries and continents
 
 ## Features
 
-✅ **Real-time Voice Calls** - High-quality P2P voice communication  
-✅ **Auto Server Discovery** - Automatically detects signaling server  
-✅ **Call Recording** - Automatic recording with server upload  
-✅ **Professional UI** - Modern incoming call interface with animations  
-✅ **Global Connectivity** - Works anywhere with internet connection  
-✅ **Low Latency** - WebRTC P2P for minimal delay  
+✅ **Global Voice Calls** - Call anyone worldwide through centralized server  
+✅ **AI Scam Detection** - Real-time analysis with ML models  
+✅ **Smart Alerts** - Warnings sent only to potential victims  
+✅ **Professional UI** - Modern call interface with scam alerts  
+✅ **Auto Server Discovery** - Connects to your deployed server  
+✅ **Call Recording & Analysis** - 10-second chunks for scam detection  
+✅ **Multi-Platform Deployment** - RunPod, Render, Railway, Heroku support  
+
+## 🤖 AI Protection Features
+
+- **Whisper Speech Recognition** - Real-time transcription
+- **AI Voice Detection** - Identifies synthetic/deepfake voices  
+- **Emotion Analysis** - Detects stress patterns in speech
+- **LLM Scam Detection** - Pattern recognition for fraud schemes
+- **Role-Based Alerts** - Only victims receive warnings
 
 ## Architecture
 
+```
+[Phone A] ←→ [Centralized Server + AI] ←→ [Phone B]
+    ↓              ↓                    ↓
+ Any Country   Your Cloud Server    Any Country
+```
+
 - **Frontend**: Flutter with WebRTC
-- **Backend**: Node.js signaling server with Socket.IO
-- **Communication**: Direct P2P after signaling
-- **Recording**: Chunked uploads to server
+- **Signaling**: Node.js server with Socket.IO  
+- **AI Engine**: Python with Whisper, emotion detection, LLM analysis
+- **Deployment**: Multi-cloud support (RunPod, Render, Railway, etc.)
+
+## Quick Deployment
+
+### 1. Deploy Server (Choose One Platform)
+
+#### RunPod (GPU-powered AI)
+```bash
+./runpod_deploy_unified.sh
+# Get URL: https://your-runpod-id.pods.run
+```
+
+#### Render (Free tier)
+- Connect GitHub repo to Render
+- Deploy `scam_detection_bridge` directory  
+- Get URL: `https://your-app.onrender.com`
+
+#### Railway
+```bash
+railway login
+railway init
+railway up
+# Get URL: https://your-app.railway.app
+```
+
+### 2. Update App Configuration
+```dart
+// In lib/voip_config.dart
+static const String primaryServerUrl = 'https://YOUR-ACTUAL-SERVER-URL';
+```
+
+### 3. Build & Distribute App
+```bash
+flutter build apk --release
+# Share APK with users worldwide
+```
 
 ## Quick Start
 

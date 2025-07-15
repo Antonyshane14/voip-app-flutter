@@ -4,6 +4,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'voip_service.dart';
+import 'voip_config.dart';
 import 'dart:math';
 
 void main() {
@@ -45,143 +46,75 @@ class _DialerPageState extends State<DialerPage> {
   }
 
   Future<String> _getServerUrl() async {
-    List<String> possibleIPs = [];
-
-    // Step 1: Check network connectivity and get network info
+    // Step 1: Check network connectivity
     try {
       var connectivityResult = await Connectivity().checkConnectivity();
       print('📶 Network type: $connectivityResult');
 
       if (connectivityResult == ConnectivityResult.none) {
         print('⚠️ No network connection detected');
-        return 'http://localhost:3000';
-      }
-
-      // If on mobile data, skip cloud server and use local network detection
-      if (connectivityResult == ConnectivityResult.mobile) {
-        print('📱 Mobile data detected - scanning local network for server');
+        return 'http://localhost:3000'; // Fallback for offline testing
       }
     } catch (e) {
       print('Connectivity check failed: $e');
     }
 
-    // Step 2: Try to detect current device's network automatically
-    try {
-      // Attempt to get external IP for better network detection context
-      await http
-          .get(Uri.parse('https://api.ipify.org?format=json'))
-          .timeout(const Duration(seconds: 3));
+    // Step 2: Try centralized server URLs (your deployed server)
+    List<String> serverUrls = VoIPConfig.serverUrls;
 
-      // Continue with local network scanning regardless of external IP result
-    } catch (e) {
-      // External IP detection failed, continue with local scanning
-      print('External IP detection failed, scanning local networks: $e');
-    }
+    print('🌐 Connecting to centralized VoIP server...');
+    print('🔍 Trying ${serverUrls.length} server URLs...');
 
-    // Step 3: Comprehensive network scanning
-    // Common network ranges - ordered by probability
-    List<String> networkBases = [
-      '192.168.1', // Most common home networks
-      '192.168.0', // Common router default
-      '192.168.2', // Some routers use this
-      '192.168.4', // Some mobile hotspots
-      '10.0.0', // Corporate/some home networks
-      '10.0.1', // Alternative corporate range
-      '172.16.0', // Private networks
-      '172.20.10', // iPhone hotspot default
-      '192.168.43', // Android hotspot default
-      '192.168.137', // Windows mobile hotspot default
-    ];
-
-    // For each network base, scan the most likely IPs
-    for (String base in networkBases) {
-      // First try the most common server/router IPs
-      possibleIPs.addAll([
-        '$base.1', // Most common router IP
-        '$base.254', // Alternative router IP
-        '$base.100', // Common server IP
-        '$base.10', // Common server IP
-        '$base.2', // Sometimes used for servers
-        '$base.5', // Sometimes used for servers
-      ]);
-
-      // Then scan a broader range for development servers
-      for (int i = 3; i <= 50; i++) {
-        if (i != 10 && i != 100 && i != 254) {
-          // Skip already added IPs
-          possibleIPs.add('$base.$i');
-        }
-      }
-    }
-
-    // Add localhost variants
-    possibleIPs.addAll([
-      '127.0.0.1', // Localhost IPv4
-      '0.0.0.0', // All interfaces
-    ]);
-
-    // Remove duplicates while preserving order
-    possibleIPs = possibleIPs.toSet().toList();
-
-    print('🔍 Scanning ${possibleIPs.length} possible server locations...');
-    print('📋 Priority networks: ${networkBases.take(3).join(', ')}...');
-
-    // Test each IP to see if the signaling server is running
-    int testedCount = 0;
-    for (String ip in possibleIPs) {
-      testedCount++;
-      if (testedCount % 20 == 0) {
-        print('📊 Tested $testedCount/${possibleIPs.length} locations...');
-      }
-
+    // Test each server URL to find the active one
+    for (String serverUrl in serverUrls) {
+      print('🔄 Testing: $serverUrl');
+      
       try {
         final response = await http
-            .get(Uri.parse('http://$ip:3000'))
-            .timeout(
-              const Duration(milliseconds: 1200),
-            ); // Fast timeout for scanning
+            .get(Uri.parse(serverUrl))
+            .timeout(VoIPConfig.connectionTimeout);
 
         if (response.statusCode == 200) {
-          // Check if it's actually our VoIP server by looking for expected response
+          // Check if it's actually our VoIP server
           if (response.body.contains('VoIP') ||
-              response.body.contains('signaling')) {
-            print('✅ Found VoIP server at: http://$ip:3000');
+              response.body.contains('signaling') ||
+              response.body.contains('WebRTC')) {
+            print('✅ Connected to VoIP server: $serverUrl');
             print('📝 Server response: ${response.body.substring(0, 100)}...');
-            return 'http://$ip:3000';
+            return serverUrl;
           } else {
-            print('📍 Found HTTP server at $ip:3000 but not VoIP server');
+            print('❌ Found HTTP server but not VoIP server at: $serverUrl');
           }
         } else if (response.statusCode == 404) {
-          // Server is responding but might not have root endpoint - could still be our server
-          print('� Found server at: http://$ip:3000 (testing further...)');
-
-          // Try to ping a VoIP-specific endpoint
+          // Server responding but no root endpoint - test Socket.IO
+          print('🔍 Testing Socket.IO endpoint at: $serverUrl');
+          
           try {
             final testResponse = await http
-                .get(Uri.parse('http://$ip:3000/socket.io/'))
-                .timeout(const Duration(milliseconds: 500));
+                .get(Uri.parse('$serverUrl/socket.io/'))
+                .timeout(VoIPConfig.socketTimeout);
+            
             if (testResponse.statusCode == 400 ||
                 testResponse.body.contains('socket.io')) {
-              print('✅ Confirmed VoIP server at: http://$ip:3000');
-              return 'http://$ip:3000';
+              print('✅ Confirmed VoIP server (Socket.IO): $serverUrl');
+              return serverUrl;
             }
           } catch (e) {
-            // Continue searching
+            print('❌ Socket.IO test failed for: $serverUrl');
           }
         }
       } catch (e) {
-        // Server not found on this IP, continue silently
+        print('❌ Connection failed: $serverUrl - $e');
         continue;
       }
     }
 
-    print(
-      '⚠️ No VoIP server found after scanning ${possibleIPs.length} locations',
-    );
-    print('💡 Make sure your signaling server is running on port 3000');
-    print('🔄 Using localhost fallback - server may be on this device');
+    print('⚠️ Could not connect to any centralized server!');
+    print('💡 Please ensure your server is deployed and running');
+    print('🔧 Update the serverUrls list with your actual server URL');
+    print('🔄 Using localhost fallback for testing');
 
-    // Final fallback to localhost for desktop testing
+    // Fallback to localhost for development
     return 'http://localhost:3000';
   }
 
@@ -324,7 +257,7 @@ class _DialerPageState extends State<DialerPage> {
                     Expanded(child: Text(rec, style: const TextStyle(fontSize: 13))),
                   ],
                 ),
-              )).toList(),
+              )),
             ],
           ),
           actions: [
