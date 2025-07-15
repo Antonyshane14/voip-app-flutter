@@ -55,6 +55,8 @@ class VoIPService {
   Timer? _chunkUploadTimer;
   int _chunkCounter = 0;
   String? _currentCallId;
+  bool _isIncomingCall = false; // Track if this is incoming call (potential victim)
+  String? _currentUserId;
 
   // Recording components
   final AudioRecorder _recorder = AudioRecorder();
@@ -86,6 +88,9 @@ class VoIPService {
     required String userId,
   }) async {
     try {
+      // Store current user ID
+      _currentUserId = userId;
+      
       // Connect to signaling server
       _socket = IO.io(serverUrl, <String, dynamic>{
         'transports': ['websocket'],
@@ -136,7 +141,10 @@ class VoIPService {
       // Start recording when call starts
       await startRecording();
       
-      // Start scam detection
+      // Mark as outgoing call (caller = potential scammer, no alerts needed)
+      _isIncomingCall = false;
+      
+      // Start scam detection (but won't send alerts for outgoing calls)
       final callId = 'call_${DateTime.now().millisecondsSinceEpoch}';
       _startScamDetection(callId, targetUserId);
 
@@ -280,6 +288,14 @@ class VoIPService {
   // Accept pending call
   Future<void> acceptIncomingCall() async {
     if (_pendingOffer != null) {
+      // Mark as incoming call (receiver = potential victim, needs alerts)
+      _isIncomingCall = true;
+      
+      // Start recording and scam detection for incoming call
+      await startRecording();
+      final callId = 'call_${DateTime.now().millisecondsSinceEpoch}';
+      _startScamDetection(callId, 'incoming_caller');
+      
       await answerCall(_pendingOffer!);
       _pendingOffer = null;
     }
@@ -444,10 +460,16 @@ class VoIPService {
   // Handle incoming scam alerts
   void _handleScamAlert(dynamic data) {
     try {
+      // Only process alerts for incoming calls (potential victims)
+      if (!_isIncomingCall) {
+        print('🔇 Scam alert ignored - outgoing call (caller role)');
+        return;
+      }
+
       final alert = ScamAlert.fromJson(Map<String, dynamic>.from(data));
-      print('🚨 SCAM ALERT: ${alert.level} - ${alert.message}');
+      print('🚨 SCAM ALERT (INCOMING CALL): ${alert.level} - ${alert.message}');
       
-      // Notify the UI through callback
+      // Notify the UI through callback (only for potential victims)
       onScamAlert?.call(alert);
     } catch (e) {
       print('Error processing scam alert: $e');
@@ -459,10 +481,12 @@ class VoIPService {
     _currentCallId = callId;
     _chunkCounter = 0;
     
-    // Register call for notifications
+    // Register call for notifications with role information
     _scamSocket?.emit('register-call', {
       'call_id': callId,
-      'user_id': userId,
+      'user_id': _currentUserId,
+      'is_incoming_call': _isIncomingCall, // Tell bridge about call direction
+      'target_user': userId,
     });
 
     // Start periodic chunk upload (every 10 seconds)
@@ -515,7 +539,9 @@ class VoIPService {
 
       request.fields['call_id'] = _currentCallId!;
       request.fields['chunk_number'] = _chunkCounter.toString();
-      request.fields['user_id'] = 'current_user'; // You can pass actual user ID
+      request.fields['user_id'] = _currentUserId ?? 'unknown_user';
+      request.fields['is_incoming_call'] = _isIncomingCall.toString();
+      request.fields['user_role'] = _isIncomingCall ? 'receiver' : 'caller';
 
       final response = await request.send();
       

@@ -20,9 +20,9 @@ const io = socketIo(server, {
 app.use(cors());
 app.use(express.json());
 
-// Store active call analysis sessions
+// Store active call analysis sessions with role information
 const activeCalls = new Map();
-const callSockets = new Map(); // Map call_id to socket_id for notifications
+const callSockets = new Map(); // Map call_id to {socket_id, is_incoming_call, user_role}
 
 // Configure multer for temporary file storage
 const upload = multer({
@@ -37,7 +37,7 @@ if (!fs.existsSync('./temp_recordings')) {
   fs.mkdirSync('./temp_recordings', { recursive: true });
 }
 
-// Python API configuration
+// Python API configuration - Integrated Python API
 const PYTHON_API_URL = process.env.PYTHON_API_URL || 'http://localhost:8000';
 
 console.log(`🐍 Python API URL: ${PYTHON_API_URL}`);
@@ -45,13 +45,14 @@ console.log(`🐍 Python API URL: ${PYTHON_API_URL}`);
 // Main endpoint: Receive audio from VoIP app and forward to Python
 app.post('/analyze-call-chunk', upload.single('audio'), async (req, res) => {
   try {
-    const { call_id, chunk_number, user_id } = req.body;
+    const { call_id, chunk_number, user_id, is_incoming_call, user_role } = req.body;
     
     if (!req.file) {
       return res.status(400).json({ error: 'No audio file provided' });
     }
 
-    console.log(`📞 Processing call chunk: ${call_id} #${chunk_number}`);
+    const isIncomingCall = is_incoming_call === 'true';
+    console.log(`📞 Processing call chunk: ${call_id} #${chunk_number} [Role: ${user_role}]`);
 
     // Create FormData to send to Python API
     const formData = new FormData();
@@ -164,15 +165,21 @@ app.post('/analyze-call-chunk', upload.single('audio'), async (req, res) => {
       }
     }
 
-    // Send real-time notification to VoIP app if risk detected
+    // Send real-time notification ONLY to receivers (potential victims)
     if (notification && callSockets.has(call_id)) {
-      const socketId = callSockets.get(call_id);
-      io.to(socketId).emit('scam-alert', {
-        call_id,
-        chunk_number,
-        ...notification
-      });
-      console.log(`🚨 Sent ${riskLevel} risk alert for call ${call_id}`);
+      const callSocketInfo = callSockets.get(call_id);
+      
+      // Only send alerts to receivers of incoming calls (potential victims)
+      if (callSocketInfo.is_incoming_call && callSocketInfo.user_role === 'receiver') {
+        io.to(callSocketInfo.socket_id).emit('scam-alert', {
+          call_id,
+          chunk_number,
+          ...notification
+        });
+        console.log(`🚨 Sent ${riskLevel} risk alert to RECEIVER for call ${call_id}`);
+      } else {
+        console.log(`🔇 Suppressed alert for CALLER in call ${call_id} (role: ${callSocketInfo.user_role})`);
+      }
     }
 
     // Cleanup temporary file
